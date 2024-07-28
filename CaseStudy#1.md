@@ -1,4 +1,4 @@
-# 🍜 Case Study #1: Danny's Diner 
+# Case Study #1: Danny's Diner 
 <img src="https://8weeksqlchallenge.com/images/case-study-designs/1.png" alt="Image" width="500" height="520">
 
 ## 📚 Table of Contents
@@ -38,7 +38,7 @@ ORDER BY sales.customer_id ASC;
 ````
 
 #### Guideline:
-- 1. `SELECT sales.customer_id, SUM(menu.price) AS total_sales`
+1. `SELECT sales.customer_id, SUM(menu.price) AS total_sales`
 This part of the query specifies the columns to be retrieved from the database:
 
     * sales.customer_id: This column is from the sales table and represents the ID of the customer.
@@ -80,3 +80,113 @@ The query retrieves the total sales for each customer from Danny's Diner databas
 
 ***
 
+**2. How many days has each customer visited the restaurant?**
+
+````sql
+SELECT 
+  customer_id, 
+  COUNT(DISTINCT order_date) AS visit_count
+FROM dannys_diner.sales
+GROUP BY customer_id;
+````
+
+#### Guideline:
+1. `SELECT customer_id, COUNT(DISTINCT order_date) AS visit_count`
+This part of the query specifies the columns to be retrieved from the database:
+
+    * customer_id: This column represents the ID of the customer.
+    * COUNT(DISTINCT order_date) AS visit_count: This calculates the number of distinct order_date entries for each customer. The result is labeled as visit_count. This effectively counts how many unique days each customer made a purchase, serving as a proxy for the number of visits.
+
+2. `FROM dannys_diner.sales`
+This specifies the sales table as the primary table from which to retrieve data. The sales table likely contains records of sales transactions, including customer_id and order_date.
+
+3. `GROUP BY customer_id`
+This groups the results by customer_id. This means that the COUNT(DISTINCT order_date) calculation will be performed for each unique customer_id.
+
+#### Summary:
+The query retrieves the number of distinct visit days for each customer from Danny's Diner database. It does this by:
+
+    * Selecting the customer_id and counting the distinct order_date entries for each customer.
+    * Grouping the results by customer_id to get a visit count for each customer.
+
+#### Answer:
+| customer_id | visit_count |
+| ----------- | ----------- |
+| A           | 4          |
+| B           | 6          |
+| C           | 2          |
+
+- Customer A visited 4 times.
+- Customer B visited 6 times.
+- Customer C visited 2 times.
+
+***
+
+**3. What was the first item from the menu purchased by each customer?**
+
+````sql
+WITH ordered_sales AS (
+  SELECT 
+    sales.customer_id, 
+    sales.order_date, 
+    menu.product_name,
+    DENSE_RANK() OVER (
+      PARTITION BY sales.customer_id 
+      ORDER BY sales.order_date) AS rank
+  FROM dannys_diner.sales
+  INNER JOIN dannys_diner.menu
+    ON sales.product_id = menu.product_id
+)
+
+SELECT 
+  customer_id, 
+  product_name
+FROM ordered_sales
+WHERE rank = 1
+GROUP BY customer_id, product_name;
+````
+
+#### Guidelines:
+
+1. Common Table Expression (CTE): ordered_sales
+This CTE creates a temporary result set that assigns a rank to each sale for each customer based on the order date.
+
+    * `sales.customer_id`: The ID of the customer.
+    * `sales.order_date`: The date of the order.
+    * `menu.product_name`: The name of the product, retrieved from the menu table.
+    * `DENSE_RANK() OVER (PARTITION BY sales.customer_id ORDER BY sales.order_date) AS rank`: This assigns a rank to each order per customer, ordered by the order date. `DENSE_RANK` ensures that the rank values are consecutive integers starting from 1 for each customer_id.
+2. Main Query
+This part of the query retrieves the product names for the first order of each customer.
+
+    * `customer_id:` The ID of the customer.
+    * `product_name:` The name of the product from the customer's first order.
+    * `FROM ordered_sales:` Refers to the CTE ordered_sales defined earlier.
+    * `WHERE rank = 1`: Filters the results to include only the first order for each customer (i.e., where the rank is 1).
+    * `GROUP BY customer_id, product_name`: Groups the results by customer_id and product_name to ensure unique combinations of these values are returned.
+
+#### Summary:
+The query retrieves the product name(s) from the first order for each customer from Danny's Diner database. It does this by:
+
+    * Creating a temporary result set (ordered_sales) that includes each sale with a rank based on the order date for each customer.
+    * Selecting the customer_id and product_name from this temporary result set where the rank is 1, indicating the first order.
+    * Grouping by customer_id and product_name to get unique combinations.
+
+#### Answer:
+| customer_id | product_name | 
+| ----------- | ----------- |
+| A           | curry        | 
+| A           | sushi        | 
+| B           | curry        | 
+| C           | ramen        |
+
+- Customer A placed an order for both curry and sushi simultaneously, making them the first items in the order.
+- Customer B's first order is curry.
+- Customer C's first order is ramen.
+
+I have received feedback suggesting the use of `ROW_NUMBER()` instead of `DENSE_RANK()` for determining the "first order" in this question. 
+
+However, since the `order_date` does not have a timestamp, it is impossible to determine the exact sequence of items ordered by the customer. 
+
+Therefore, it would be inaccurate to conclude that curry is the customer's first order purely based on the alphabetical order of the product names. For this reason, I maintain my solution of using `DENSE_RANK()` and consider both curry and sushi as Customer A's first order.
+
+***
